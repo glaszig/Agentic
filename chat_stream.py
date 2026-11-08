@@ -38,6 +38,8 @@ import os
 import time
 import json
 import urllib.request
+import urllib.parse
+import base64
 import threading
 import random
 import re
@@ -137,14 +139,35 @@ def chat_stream(messages, model, cancel=None):
     stream = body.get("stream", False)
 
     data = json.dumps(body).encode("utf-8")
+    parsed_url = urllib.parse.urlsplit(url)
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "AsyncAPIClient/Python 2.14.0"
+    }
+
+    if parsed_url.username is not None and parsed_url.password is not None:
+        credentials = "{}:{}".format(
+            urllib.parse.unquote(parsed_url.username),
+            urllib.parse.unquote(parsed_url.password)
+        ).encode("utf-8")
+        headers["Authorization"] = "Basic {}".format(
+            base64.b64encode(credentials).decode("ascii")
+        )
+        netloc = parsed_url.netloc.rsplit("@", 1)[-1]
+        url = urllib.parse.urlunsplit((
+            parsed_url.scheme,
+            netloc,
+            parsed_url.path,
+            parsed_url.query,
+            parsed_url.fragment,
+        ))
+    else:
+        headers["Authorization"] = "Bearer {}".format(token)
+
     req = urllib.request.Request(
         url,
         data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": "Bearer {}".format(token),
-            "User-Agent": "AsyncAPIClient/Python 2.14.0"
-        },
+        headers=headers,
     )
 
     if not stream:
@@ -429,7 +452,7 @@ def _rebuild_text(messages, strip_active=False):
 
 
 def _create_chat(window, name, initial="",
-                 temporary=True, create_pane=True, pane_dir="right"):
+                  temporary=True, create_pane=True, pane_dir="right"):
     view = window.new_file()
     # Use the last group if nondefault layout active
     if create_pane and (len(window.layout()["cols"]) != 2 or len(window.layout()["rows"]) != 2):
